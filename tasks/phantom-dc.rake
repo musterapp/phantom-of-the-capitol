@@ -21,58 +21,30 @@ namespace :'phantom-dc' do
       cm_hash = CongressMember::to_hash CongressMember.all
       captcha_hash,recaptcha_hash = build_captcha_hash
 
+      # jobs.each do |job|
+      #   cm_id, cm_args = DelayedJobHelper::congress_member_id_and_args_from_handler(job.handler)
+      #   unless cm_args[1] == "rake" and args[:job_id].nil?
+      #     cm = CongressMember::retrieve_cached(cm_hash, cm_id)
+
+      #     if regex.nil? or regex.match(cm.bioguide_id)
+      #       if retrieve_captchad_cached(recaptcha_hash, cm.id)
+      #         recaptcha_jobs.push job
+      #       elsif retrieve_captchad_cached(captcha_hash, cm.id)
+      #         captcha_jobs.push job
+      #       else
+      #         noncaptcha_jobs.push job
+      #       end
+      #     end
+      #   end
+      # end
+
       jobs.each do |job|
-        cm_id, cm_args = DelayedJobHelper::congress_member_id_and_args_from_handler(job.handler)
-        unless cm_args[1] == "rake" and args[:job_id].nil?
-          cm = CongressMember::retrieve_cached(cm_hash, cm_id)
-
-          if regex.nil? or regex.match(cm.bioguide_id)
-            if retrieve_captchad_cached(recaptcha_hash, cm.id)
-              recaptcha_jobs.push job
-            elsif retrieve_captchad_cached(captcha_hash, cm.id)
-              captcha_jobs.push job
-            else
-              noncaptcha_jobs.push job
-            end
-          end
-        end
-      end
-
-      if args[:recaptcha_mode].present?
-        recaptcha_jobs.each do |job|
-          begin
-            cm_id, cm_args = DelayedJobHelper::congress_member_id_and_args_from_handler(job.handler)
-            cm = CongressMember::retrieve_cached(cm_hash, cm_id)
-            puts red("Job #" + job.id.to_s + ", bioguide " + cm.bioguide_id)
-            pp cm_args
-            result = cm.fill_out_form_with_watir cm_args[0].merge(overrides)
-          rescue
-          end
-          DelayedJobHelper::destroy_job_and_dependents job
-        end
-        exit
-      end
-      captcha_jobs.each do |job|
         begin
           cm_id, cm_args = DelayedJobHelper::congress_member_id_and_args_from_handler(job.handler)
           cm = CongressMember::retrieve_cached(cm_hash, cm_id)
           puts red("Job #" + job.id.to_s + ", bioguide " + cm.bioguide_id)
           pp cm_args
-          result = cm.fill_out_form cm_args[0].merge(overrides), cm_args[1] do |img|
-            puts img
-            STDIN.gets.strip
-          end
-        rescue
-        end
-        DelayedJobHelper::destroy_job_and_dependents job
-      end
-      noncaptcha_jobs.each do |job|
-        begin
-          cm_id, cm_args = DelayedJobHelper::congress_member_id_and_args_from_handler(job.handler)
-          cm = CongressMember::retrieve_cached(cm_hash, cm_id)
-          puts red("Job #" + job.id.to_s + ", bioguide " + cm.bioguide_id)
-          pp cm_args
-          result = cm.fill_out_form cm_args[0].merge(overrides), cm_args[1]
+          result = cm.fill_out_form_with_watir cm_args[0].merge(overrides)
         rescue
         end
         DelayedJobHelper::destroy_job_and_dependents job
