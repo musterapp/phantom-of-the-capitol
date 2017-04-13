@@ -10,6 +10,14 @@ services:
       RACK_ENV: development
     ports:
       - "3001:3001"
+    volumes:
+      - ./cwc:/opt/phantomdc/cwc
+      - ./app:/opt/phantomdc/app
+      - ./public:/opt/phantomdc/public
+      - ./spec:/opt/phantomdc/spec
+      - ./tasks:/opt/phantomdc/tasks
+      - ./db/migrate:/opt/phantomdc/db/migrate
+      - ./docker/app/entrypoint.sh:/opt/phantomdc/entrypoint.sh
 
   db:
     image: mysql:5.7
