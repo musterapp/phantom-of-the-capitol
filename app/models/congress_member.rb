@@ -217,11 +217,13 @@ class CongressMember < ActiveRecord::Base
         when "javascript"
           b.execute_script(a.value)
         when "recaptcha"
+          sleep 100
         end
-        sleep 100
       end
 
       success = check_success b.text
+
+      sleep 100 if !success
 
       success_hash = {success: success}
       success_hash[:screenshot] = self.class::save_screenshot_and_store_watir(b.driver) if !success
