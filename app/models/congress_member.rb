@@ -217,8 +217,8 @@ class CongressMember < ActiveRecord::Base
         when "javascript"
           b.execute_script(a.value)
         when "recaptcha"
-          sleep 100
         end
+        sleep 100
       end
 
       success = check_success b.text
