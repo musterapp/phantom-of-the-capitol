@@ -92,6 +92,14 @@ namespace :'phantom-dc' do
         end
       end
     end
+    desc "destroy all fills"
+    task :destroy_all_fills, :bioguide, :job_id do |t, args|
+      jobs = retrieve_jobs args
+
+      jobs.each do |job|
+        DelayedJobHelper::destroy_job_and_dependents job
+      end
+    end
     desc "calculate # of jobs per member on the Delayed::Job error_or_failure queue"
     task :jobs_per_member do |t, args|
       jobs = Delayed::Job.where(queue: "error_or_failure")
