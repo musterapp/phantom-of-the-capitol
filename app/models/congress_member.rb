@@ -366,6 +366,8 @@ class CongressMember < ActiveRecord::Base
           session.find(a.selector).set(true)
         when "uncheck"
           session.find(a.selector).set(false)
+        when "radio"
+          session.choose(a.value)
         when "choose"
           if a.options.nil?
             session.find(a.selector).set(true)
