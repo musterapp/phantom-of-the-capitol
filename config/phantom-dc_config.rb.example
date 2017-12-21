@@ -2,9 +2,9 @@
 
 CAPTCHA_TIMEOUT = ENV_PRIME['CAPTCHA_TIMEOUT'] || 120
 DELAY_ALL_NONCAPTCHA_FILLS = ENV_PRIME['DELAY_ALL_NONCAPTCHA_FILLS'] || false
-CORS_ALLOWED_DOMAINS = ENV_PRIME['CORS_ALLOWED_DOMAINS'] || %w[https://efforg.github.io]
+CORS_ALLOWED_DOMAINS = ENV_PRIME['CORS_ALLOWED_DOMAINS'] || %w[https://efforg.github.io localhost:8000]
 RECORD_FILL_STATUSES = ENV_PRIME['RECORD_FILL_STATUSES'] || true
-DEBUG_KEY = ENV_PRIME['DEBUG_KEY'] || "" # password needed to access sensitive info on this instance. change!
+DEBUG_KEY = ENV_PRIME['DEBUG_KEY'] || "test" # password needed to access sensitive info on this instance. change!
 
 # smarty streets is needed for some rake tasks - https://smartystreets.com
 SMARTY_STREETS_ID = ENV_PRIME['SMARTY_STREETS_ID'] || "" 

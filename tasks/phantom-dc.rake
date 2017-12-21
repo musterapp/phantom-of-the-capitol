@@ -44,10 +44,13 @@ namespace :'phantom-dc' do
           cm = CongressMember::retrieve_cached(cm_hash, cm_id)
           puts red("Job #" + job.id.to_s + ", bioguide " + cm.bioguide_id)
           pp cm_args
+          pp cm_args[0].merge(overrides)
           result = cm.fill_out_form_with_watir cm_args[0].merge(overrides)
         rescue
+        ensure
+          DelayedJobHelper::destroy_job_and_dependents job
+          next
         end
-        DelayedJobHelper::destroy_job_and_dependents job
       end
     end
     desc "perform recaptcha fills by hand using watir, optionally provide bioguide regex or job id"

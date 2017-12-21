@@ -206,6 +206,8 @@ class CongressMember < ActiveRecord::Base
           end
         when "check"
           b.element(:css => a.selector).to_subtype.set
+        when "radio"
+          b.element(:css => a.selector, :value => a.value).set
         when "uncheck"
           b.element(:css => a.selector).to_subtype.clear
         when "choose"
@@ -223,17 +225,15 @@ class CongressMember < ActiveRecord::Base
 
       success = check_success b.text
 
-      sleep 100 if !success
+      sleep 10000 if !success
 
       success_hash = {success: success}
       success_hash[:screenshot] = self.class::save_screenshot_and_store_watir(b.driver) if !success
       success_hash
     rescue Exception => e
-      message = {message: e.message}
-      message[:screenshot] = self.class::save_screenshot_and_store_watir(b.driver)
-      raise e, YAML.dump(message)
+      sleep 10000
     ensure
-      b.close
+      sleep 10000
     end
   end
 
@@ -383,11 +383,14 @@ class CongressMember < ActiveRecord::Base
 
       success = check_success session.text
 
+      print success
+
       success_hash = {success: success}
       success_hash[:screenshot] = self.class::save_screenshot_and_store_poltergeist(session) if !success
       success_hash
     rescue Exception => e
       message = {message: e.message}
+      print(message)
       message[:screenshot] = self.class::save_screenshot_and_store_poltergeist(session)
       raise e, YAML.dump(message)
     ensure
