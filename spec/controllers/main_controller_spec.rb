@@ -143,8 +143,9 @@ describe "Main controller" do
         "bio_id" => c.bioguide_id
       }.to_json
       last_response_json = JSON.load(last_response.body)
+
       expect(last_response_json["status"]).to eq("error")
-      expect(last_response_json["message"]).not_to be_nil # don't be brittle
+      expect(last_response_json["message"]).to include("missing fields")
     end
 
     it "should return json indicating an error and create a new Delayed Job when trying to fill out form of CongressMember with incorrect success criteria" do
@@ -170,6 +171,23 @@ describe "Main controller" do
       expect(FillStatus.success.count).to eq(1)
     end
 
+    it "should all but fill out a form when provided with the required values and test=1" do
+      c = create :congress_member_with_actions
+
+      expect(CongressMember).to receive(:bioguide){ c }.at_least(:once)
+      expect(c).not_to receive(:delay)
+      expect(c).not_to receive(:fill_out_form)
+
+      post_json @route, {
+        "bio_id" => c.bioguide_id,
+        "fields" => MOCK_VALUES,
+        "test" => "1"
+      }.to_json
+
+      expect(last_response.status).to eq(200)
+      expect(JSON.load(last_response.body)["status"]).to eq("success")
+    end
+
     it "should create a new campaign tag record when filling in a form successfully with a campaign tag specified" do
       c = create :congress_member_with_actions
       post_json @route, {
@@ -181,6 +199,19 @@ describe "Main controller" do
       expect(last_response.status).to eq(200)
       expect(JSON.load(last_response.body)["status"]).to eq("success")
       expect(CampaignTag.last.name).to eq(@campaign_tag)
+    end
+
+    it "should 403 Forbidden when #preprocess_message is defined and returns false" do
+      expect_any_instance_of(CongressForms::App).to receive(:preprocess_message){ false }
+
+      c = create :congress_member_with_actions
+      post_json @route, {
+        "bio_id" => c.bioguide_id,
+        "fields" => MOCK_VALUES,
+        "campaign_tag" => @campaign_tag
+      }.to_json
+
+      expect(last_response.status).to eq(403)
     end
 
     describe "with a captcha" do
@@ -270,7 +301,7 @@ describe "Main controller" do
       it "should issue a 302 redirect to a shield image with a 50% success rate" do
         get '/recent-fill-image/A010101'
         expect(last_response.status).to eq(302)
-        expect(last_response.headers['Location']).to eq(CongressMember::RECENT_FILL_IMAGE_BASE + 'success-50%-CCCC00' + CongressMember::RECENT_FILL_IMAGE_EXT)
+        expect(last_response.headers['Location']).to eq(CongressMember::RECENT_FILL_IMAGE_BASE + 'success-50%25-CCCC00' + CongressMember::RECENT_FILL_IMAGE_EXT)
       end
     end
 

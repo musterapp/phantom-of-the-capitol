@@ -2,12 +2,18 @@
 RACK_ENV = ENV['RACK_ENV'] ||= 'development'  unless defined?(RACK_ENV)
 PADRINO_ROOT = File.expand_path('../..', __FILE__) unless defined?(PADRINO_ROOT)
 
+$LOAD_PATH << File.expand_path("#{PADRINO_ROOT}/cwc/lib")
+require "cwc" if RACK_ENV == "production"
+
 # Load our dependencies
 require 'rubygems' unless defined?(Gem)
 require 'bundler/setup'
 Bundler.require(:default, RACK_ENV)
+
+require "dotenv/load"
 require "#{Padrino.root}/config/env.rb"
 require "#{Padrino.root}/config/phantom-dc_config.rb"
+
 if File.exists?(file = "#{Padrino.root}/config/constants.rb")
   require file
 end
@@ -18,6 +24,16 @@ end
 require 'capybara/poltergeist'
 Capybara.run_server = false
 Capybara.default_max_wait_time = 5
+
+Capybara.register_driver :poltergeist do |app|
+  options = {
+    js_errors: false,
+    phantomjs_options: ['--ssl-protocol=TLSv1'],
+    url_blacklist: ENV.fetch('URL_BLACKLIST'){ '' }.split(',')
+  }
+
+  Capybara::Poltergeist::Driver.new(app, options)
+end
 
 
 SmartyStreets.configure do |c|
@@ -30,6 +46,8 @@ unless SENTRY_DSN.nil?
   Raven.configure do |config|
     config.dsn = SENTRY_DSN
   end
+
+  Padrino.use Raven::Rack
 end
 
 ##
@@ -60,6 +78,9 @@ end
 #
 Padrino.before_load do
   Padrino.dependency_paths << Padrino.root("app/uploaders/*.rb")
+  Padrino.dependency_paths << Padrino.root("app/tasks/*.rb")
+  Padrino.dependency_paths << Padrino.root("app/helpers/*.rb")
+  Padrino.dependency_paths << Padrino.root("cwc/lib/*.rb")
 end
 
 ##

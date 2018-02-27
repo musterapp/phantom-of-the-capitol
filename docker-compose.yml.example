@@ -2,7 +2,7 @@ version: '2'
 services:
   app:
     build: .
-    restart: always
+    restart: unless-stopped
     depends_on:
       - db
     env_file: .env
@@ -25,13 +25,30 @@ services:
     volumes:
       - /var/lib/mysql
 
+  delayed_jobs_worker:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - db
+    env_file: .env
+    environment:
+      RACK_ENV: development
+      LOAD_CONGRESS: "false"
+
+    command: sh -c 'QUEUES=notifications bundle exec rake jobs:work'
+
+
   # Uncomment the following lines if you'd like the members of congress to be
   # updated from the YAML files every 15 minutes.  Otherwise you'll have to
   # manually update them via `rake phantom-dc:update_git` within the container.
   #
   #cron:
-  #  image: docker
+  #  build: .
+  #  restart: always
+  #  depends_on:
+  #    - db
+  #  env_file: .env
   #  volumes:
-  #    - /var/run/docker.sock:/var/run/docker.sock
-  #    - ./docker/cron/crontab:/etc/crontabs/root
-  #  command: crond -f
+  #    - ./docker/cron/update_git:/opt/phantomdc/cron/update_git
+  #  command: bash -c "env | sed 's@^@export @' >/etc/profile.d/env.sh; cp ./cron/* /etc/cron.d; cron -f"
+

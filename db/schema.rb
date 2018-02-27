@@ -1,4 +1,3 @@
-# encoding: UTF-8
 # This file is auto-generated from the current state of the database. Instead
 # of editing this file, please use the migrations feature of Active Record to
 # incrementally modify your database, and then regenerate this schema definition.
@@ -11,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 16) do
+ActiveRecord::Schema.define(version: 18) do
 
   create_table "application_settings", force: :cascade do |t|
     t.string   "key",        limit: 255
@@ -32,7 +31,7 @@ ActiveRecord::Schema.define(version: 16) do
     t.string  "action",              limit: 255
     t.string  "name",                limit: 255
     t.string  "selector",            limit: 255
-    t.string  "value",               limit: 255
+    t.string  "value",               limit: 511
     t.boolean "required",                          default: false
     t.integer "maxlength",           limit: 4
     t.string  "captcha_selector",    limit: 255
@@ -49,6 +48,9 @@ ActiveRecord::Schema.define(version: 16) do
     t.string   "chamber",          limit: 255
     t.integer  "house_district",   limit: 4
     t.integer  "senate_class",     limit: 4
+    t.boolean  "defunct",                      default: false
+    t.string   "contact_url",      limit: 255
+    t.string   "name",             limit: 255
   end
 
   add_index "congress_members", ["bioguide_id"], name: "index_congress_members_on_bioguide_id", unique: true, using: :btree

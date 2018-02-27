@@ -1,5 +1,4 @@
 source 'https://rubygems.org'
-ruby "2.2.0"
 
 # Distribute your app as a gem
 # gemspec
@@ -16,6 +15,11 @@ gem 'rake'
 
 # Component requirements
 gem 'slim'
+
+# Development requirements
+group :development, :test do
+  gem 'pry', require: true
+end
 
 # Test requirements
 group :test do
@@ -36,8 +40,9 @@ gem 'pg'
 gem 'enumerize'
 gem 'mini_magick'
 gem 'delayed_job_active_record'
+gem 'nokogiri', '>= 1.8.1'
 gem 'capybara'
-gem 'poltergeist', '1.9.0'
+gem 'poltergeist'
 gem 'capybara-webkit'
 gem 'git'
 gem 'thin'
@@ -51,8 +56,7 @@ gem 'groupdate'
 gem 'sentry-raven'
 gem 'dotenv'
 gem 'rack-cors'
-
-gem 'cwc', path: "./cwc"
+gem 'rest-client'
 
 
 # Or Padrino Edge

@@ -1,4 +1,7 @@
 class CongressMember < ActiveRecord::Base
+  require_dependency "app/helpers/message_fields_helper"
+  include MessageFieldsHelper
+
   validates_presence_of :bioguide_id
 
   has_many :actions, :class_name => 'CongressMemberAction', :dependent => :destroy
@@ -66,7 +69,7 @@ class CongressMember < ActiveRecord::Base
       "Technical Sergeant"
     ]
     {
-      required_actions: [
+      "required_actions" => [
         { "value" => "$NAME_PREFIX",	"maxlength" => nil,	"options_hash" => prefixes },
         { "value" => "$NAME_FIRST",	"maxlength" => nil,	"options_hash" => nil },
         { "value" => "$NAME_LAST",	"maxlength" => nil,	"options_hash" => nil },
@@ -91,49 +94,44 @@ class CongressMember < ActiveRecord::Base
   end
 
   def fill_out_form f={}, ct = nil, &block
-    status_fields = {congress_member: self, status: "success", extra: {}}.merge(ct.nil? ? {} : {campaign_tag: ct})
-    begin
-      begin
-        if REQUIRES_WATIR.include? self.bioguide_id
-          success_hash = fill_out_form_with_watir f, &block
-        elsif REQUIRES_WEBKIT.include? self.bioguide_id
-          success_hash = fill_out_form_with_webkit f, &block
-        else
-          success_hash = fill_out_form_with_poltergeist f, &block
-        end
-      rescue Exception => e
-        status_fields[:status] = "error"
-        message = YAML.load(e.message)
-        status_fields[:extra][:screenshot] = message[:screenshot] if message.is_a?(Hash) and message.include? :screenshot
-        raise e, message[:message] if message.is_a?(Hash)
-        raise e, message
-      end
+    preprocess_message_fields(bioguide_id, f)
 
-      unless success_hash[:success]
-        status_fields[:status] = "failure"
-        status_fields[:extra][:screenshot] = success_hash[:screenshot] if success_hash.include? :screenshot
-        raise FillFailure, "Filling out the remote form was not successful"
-      end
-    rescue Exception => e
-      # we need to add the job manually, since DJ doesn't handle yield blocks
-      unless ENV['SKIP_DELAY']
-        self.delay(queue: "error_or_failure").fill_out_form f, ct
-        last_job = Delayed::Job.last
-        last_job.attempts = 1
-        last_job.run_at = Time.now
-        last_job.last_error = e.message + "\n" + e.backtrace.inspect
-        last_job.save
-      end
-      raise e
-    ensure
-      if RECORD_FILL_STATUSES
-        fs = FillStatus.create(status_fields)
-        if status_fields[:status] != "success"
-          FillStatusesJob.create(fill_status_id: fs.id, delayed_job_id: last_job.id)
+    status_fields = {
+      congress_member: self,
+      status: "success",
+      extra: {}
+    }
+    status_fields[:campaign_tag] = ct unless ct.nil?
+
+    if REQUIRES_WATIR.include?(bioguide_id)
+      success_hash = fill_out_form_with_watir f, &block
+    elsif REQUIRES_WEBKIT.include?(bioguide_id)
+      success_hash = fill_out_form_with_webkit f, &block
+    else
+      success_hash = fill_out_form_with_poltergeist f, &block
+    end
+
+    unless success_hash[:success]
+      status_fields[:status] = success_hash[:exception] ? "error" : "failure"
+      status_fields[:extra][:screenshot] = success_hash[:screenshot]
+
+      if success_hash[:exception]
+        message = YAML.load(success_hash[:exception].message)
+
+        if message.is_a?(Hash) and message.include?(:screenshot)
+          status_fields[:extra][:screenshot] = message[:screenshot]
         end
       end
     end
-    true
+
+    fill_status = FillStatus.create(status_fields)
+    fill_status.save if RECORD_FILL_STATUSES
+
+    fill_status
+  end
+
+  def fill_out_form!(f={}, ct=nil, &block)
+    fill_out_form(f, ct, &block)[0] or raise FillError.new
   end
 
   # we might want to implement the "wait" option for the "find"
@@ -225,6 +223,7 @@ class CongressMember < ActiveRecord::Base
 
       success = check_success b.text
 
+# <<<<<<< HEAD
       sleep 10000 if !success
 
       success_hash = {success: success}
@@ -232,6 +231,15 @@ class CongressMember < ActiveRecord::Base
       success_hash
     rescue Exception => e
       sleep 10000
+# =======
+#       success_hash = { success: success }
+#       success_hash[:screenshot] = self.class::save_screenshot_and_store_watir(b.driver) if !success
+#       success_hash
+#     rescue Exception => e
+#       message = {success: false, message: e.message, exception: e}
+#       message[:screenshot] = self.class::save_screenshot_and_store_watir(b.driver)
+#       message
+# >>>>>>> upstream/master
     ensure
       sleep 10000
     end
@@ -247,10 +255,9 @@ class CongressMember < ActiveRecord::Base
     fill_out_form_with_capybara f, :webkit, &block
   end
 
-  def fill_out_form_with_capybara f={}, driver
-    session = Capybara::Session.new(driver)
-    session.driver.options[:js_errors] = false if driver == :poltergeist
-    session.driver.options[:phantomjs_options] = ['--ssl-protocol=TLSv1'] if driver == :poltergeist
+  def fill_out_form_with_capybara f, driver, session=nil
+    session ||= Capybara::Session.new(driver)
+
     if has_google_recaptcha?
       case driver
       when :poltergeist
@@ -261,8 +268,12 @@ class CongressMember < ActiveRecord::Base
       end
     end
 
+    form_fill_log(f, "begin")
+
     begin
       actions.order(:step).each do |a|
+        form_fill_log(f, %(#{a.action}(#{a.selector.inspect+", " if a.selector.present?}#{a.value.inspect})))
+
         case a.action
         when "visit"
           session.visit(a.value)
@@ -324,9 +335,9 @@ class CongressMember < ActiveRecord::Base
                     elem = session.first('option[value="' + a.value.gsub('"', '\"') + '"]')
                   rescue Capybara::ElementNotFound
                     begin
-                      elem = session.find('option', text: Regexp.compile("^" + Regexp.escape(a.value) + "$"))
+                      elem = session.find('option', text: Regexp.compile("^" + Regexp.escape(a.value) + "(\\W|$)"))
                     rescue Capybara::Ambiguous
-                      elem = session.first('option', text: Regexp.compile("^" + Regexp.escape(a.value) + "$"))
+                      elem = session.first('option', text: Regexp.compile("^" + Regexp.escape(a.value) + "(\\W|$)"))
                     end
                   end
                   elem.select_option
@@ -338,9 +349,9 @@ class CongressMember < ActiveRecord::Base
                   elem = session.first('option[value="' + f[a.value].gsub('"', '\"') + '"]')
                 rescue Capybara::ElementNotFound
                   begin
-                    elem = session.find('option', text: Regexp.compile("^" + Regexp.escape(f[a.value]) + "$"))
+                    elem = session.find('option', text: Regexp.compile("^" + Regexp.escape(f[a.value]) + "(\\W|$)"))
                   rescue Capybara::Ambiguous
-                    elem = session.first('option', text: Regexp.compile("^" + Regexp.escape(f[a.value]) + "$"))
+                    elem = session.first('option', text: Regexp.compile("^" + Regexp.escape(f[a.value]) + "(\\W|$)"))
                   end
                 end
                 elem.select_option
@@ -382,6 +393,7 @@ class CongressMember < ActiveRecord::Base
       end
 
       success = check_success session.text
+      form_fill_log(f, "done: #{success ? 'passing' : 'failing'} success criteria")
 
       print success
 
@@ -389,10 +401,18 @@ class CongressMember < ActiveRecord::Base
       success_hash[:screenshot] = self.class::save_screenshot_and_store_poltergeist(session) if !success
       success_hash
     rescue Exception => e
+# <<<<<<< HEAD
       message = {message: e.message}
       print(message)
+# =======
+#       form_fill_log(f, "done: unsuccessful fill (#{e.class})")
+#       form_fill_log(f, e.message)
+#       Raven.extra_context(backtrace: e.backtrace)
+
+#       message = {success: false, message: e.message, exception: e}
+# >>>>>>> upstream/master
       message[:screenshot] = self.class::save_screenshot_and_store_poltergeist(session)
-      raise e, YAML.dump(message)
+      message
     ensure
       case driver
       when :poltergeist
@@ -427,7 +447,8 @@ class CongressMember < ActiveRecord::Base
     raise
   end
 
-  def message_via_cwc(fields, campaign_tag: nil, organization: nil, message_type: :constituent_message)
+  def message_via_cwc(fields, campaign_tag: nil, organization: nil,
+                              message_type: :constituent_message, validate_only: false)
     cwc_client = Cwc::Client.new
     params = {
       campaign_id: campaign_tag || SecureRandom.hex(16),
@@ -464,20 +485,24 @@ class CongressMember < ActiveRecord::Base
     end
 
     message = cwc_client.create_message(params)
-    cwc_client.deliver(message)
 
-    if RECORD_FILL_STATUSES
-      status_fields = {
-        congress_member: self,
-        status: "success",
-        extra: {}
-      }
+    if validate_only
+      cwc_client.validate(message)
+    else
+      cwc_client.deliver(message)
+      if RECORD_FILL_STATUSES
+        status_fields = {
+          congress_member: self,
+          status: "success",
+          extra: {}
+        }
 
-      if campaign_tag
-        status_fields.merge!(campaign_tag: campaign_tag)
+        if campaign_tag
+          status_fields.merge!(campaign_tag: campaign_tag)
+        end
+
+        FillStatus.create(status_fields)
       end
-
-      FillStatus.create(status_fields)
     end
   end
 
@@ -503,6 +528,7 @@ class CongressMember < ActiveRecord::Base
     screenshot_location = random_screenshot_location
     driver.save_screenshot(screenshot_location)
     url = store_screenshot_from_location screenshot_location
+    Raven.extra_context(screenshot: url)
     File.unlink screenshot_location
     url
   end
@@ -511,6 +537,7 @@ class CongressMember < ActiveRecord::Base
     screenshot_location = random_screenshot_location
     session.save_screenshot(screenshot_location, full: true)
     url = store_screenshot_from_location screenshot_location
+    Raven.extra_context(screenshot: url)
     File.unlink screenshot_location
     url
   end
@@ -641,6 +668,15 @@ class CongressMember < ActiveRecord::Base
     cms.to_json
   end
 
+  private
+
+  def form_fill_log(fields, message)
+    log_message = "#{bioguide_id} fill (#{[bioguide_id, fields].hash.to_s(16)}): #{message}"
+    Padrino.logger.info(log_message)
+
+    Raven.extra_context(fill_log: "") unless Raven.context.extra.key?(:fill_log)
+    Raven.context.extra[:fill_log] << message << "\n"
+  end
 end
 
 
